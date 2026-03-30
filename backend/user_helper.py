@@ -117,7 +117,7 @@ def recommend_outfit_for_user(user_image_path, items_per_category=3):
     img_tensor = preprocess_image(user_image_path)
     query_vector = extract_features(img_tensor).reshape(1, -1)
     
-    # 1. Detect Gender
+    # Get initial neighbors to detect user style/gender
     _, idx = knn.kneighbors(query_vector, n_neighbors=11)
     neighbor_genders = [str(final_data.get(image_files[i], {}).get("gender", "Men")).strip() for i in idx[0]]
     user_gender = Counter(neighbor_genders).most_common(1)[0][0]
@@ -126,7 +126,7 @@ def recommend_outfit_for_user(user_image_path, items_per_category=3):
     user_type = str(top_info.get("articleType", "")).strip()
     user_usage = str(top_info.get("usage", "Casual")).strip()
 
-    # 2. Identify the Group of the uploaded item (e.g., Topwear)
+    # Find which group the uploaded item belongs to
     user_group = None
     clean_user_type = user_type.lower().replace(" ", "").replace("-", "")
     for group, types in category_map.items():
@@ -134,14 +134,16 @@ def recommend_outfit_for_user(user_image_path, items_per_category=3):
             user_group = group
             break
 
-    # 3. Setup Buckets (Filtering out the uploaded group)
+    # Determine what other categories to suggest
     target_groups = compatibility.get(user_group, ["Topwear", "Bottomwear", "Footwear", "Bags", "Accessories"])
     target_groups = [g for g in target_groups if g != user_group]
+    
+    # Initialize buckets as empty lists to hold multiple suggestions
     outfit_buckets = {group: [] for group in target_groups}
     
     blacklist = ["Briefs", "Bra", "Innerwear", "Socks", "Vests", "Nightdress", "Nightwear", "Boxers"]
     
-    # 4. Search with Strict Category Gating
+    # Search the entire dataset for matches
     _, all_indices = knn.kneighbors(query_vector, n_neighbors=len(image_files))
 
     for i in all_indices[0]:
@@ -152,16 +154,13 @@ def recommend_outfit_for_user(user_image_path, items_per_category=3):
         c_type = str(info.get("articleType", "")).strip()
         c_usage = str(info.get("usage", "")).strip()
 
-        # --- THE "MEN-ONLY" STRICTURE ---
-        if user_gender == "Men" and c_gen == "Women":
+        # Basic filtering: gender and blacklist
+        if (user_gender == "Men" and c_gen == "Women") or (user_gender == "Women" and c_gen == "Men"):
             continue
-            
-        # --- THE "NO T-SHIRT REPEAT" FIX ---
-        if c_type == user_type or c_type in blacklist:
+        if c_type in blacklist or c_type == user_type:
             continue
 
-        # --- THE "DOUBLE-GATE" CATEGORY CHECK ---
-        # 1. Get the actual group of this candidate
+        # Find category group for the candidate
         clean_c_type = c_type.lower().replace(" ", "").replace("-", "")
         c_grp = None
         for g, types in category_map.items():
@@ -169,19 +168,17 @@ def recommend_outfit_for_user(user_image_path, items_per_category=3):
                 c_grp = g
                 break
 
-        # 2. ONLY add if the candidate's group matches the bucket we are filling
-        # This prevents a 'Jacket' (Topwear) from entering the 'Footwear' bucket
-        if c_grp in outfit_buckets:
-            if len(outfit_buckets[c_grp]) < items_per_category:
-                # Optional: Match usage (Casual vs Formal)
-                if c_usage == user_usage:
-                    outfit_buckets[c_grp].append(cand_id)
+        # If it fits a target group and we need more items for that group
+        if c_grp in outfit_buckets and len(outfit_buckets[c_grp]) < items_per_category:
+            # Match the usage (Casual/Formal) for better coordination
+            if c_usage == user_usage:
+                outfit_buckets[c_grp].append(cand_id)
 
-        # Stop once all buckets have 3 items
+        # Stop if all categories have enough items
         if all(len(v) >= items_per_category for v in outfit_buckets.values()):
             break
 
-    return outfit_buckets
+    return outfit_buckets # Returns a dictionary of lists
 
 def handle_user_request(image_path):
     UPLOAD_BASE = "temp/user_uploads"
