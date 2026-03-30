@@ -1,0 +1,26 @@
+# --- Frontend ---
+frontend/node_modules/
+frontend/build/
+frontend/.env
+.eslintcache
+
+# --- Backend ---
+backend/__pycache__/
+backend/*.pyc
+backend/.env
+backend/__init__.py
+
+
+# --- THE BIG DATA (Ignore 44k images but keep code) ---
+# We ignore the images because 44,000 files will break Git
+backend/images/
+*.zip
+*.tar.gz
+
+
+# --- Environments & OS ---
+.venv/
+venv/
+env/
+.DS_Store
+Thumbs.db
