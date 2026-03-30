@@ -113,10 +113,11 @@ def recommend_outfit_for_user(user_image_path):
 
     return [img for img in outfit_buckets.values() if img is not None]
 
-def recommend_outfit_for_user(user_image_path):
+def recommend_outfit_for_user(user_image_path, items_per_category=3):
     img_tensor = preprocess_image(user_image_path)
     query_vector = extract_features(img_tensor).reshape(1, -1)
     
+    # 1. Detect Gender
     _, idx = knn.kneighbors(query_vector, n_neighbors=11)
     neighbor_genders = [str(final_data.get(image_files[i], {}).get("gender", "Men")).strip() for i in idx[0]]
     user_gender = Counter(neighbor_genders).most_common(1)[0][0]
@@ -124,8 +125,8 @@ def recommend_outfit_for_user(user_image_path):
     top_info = final_data.get(image_files[idx[0][0]], {})
     user_type = str(top_info.get("articleType", "")).strip()
     user_usage = str(top_info.get("usage", "Casual")).strip()
-    user_color = str(top_info.get("baseColour", "")).lower().strip()
 
+    # 2. Identify the Group of the uploaded item (e.g., Topwear)
     user_group = None
     clean_user_type = user_type.lower().replace(" ", "").replace("-", "")
     for group, types in category_map.items():
@@ -133,69 +134,54 @@ def recommend_outfit_for_user(user_image_path):
             user_group = group
             break
 
-    print(f"🕵️ AI VERDICT -> Gender: {user_gender} | Type: {user_type} | Usage: {user_usage}")
-
+    # 3. Setup Buckets (Filtering out the uploaded group)
     target_groups = compatibility.get(user_group, ["Topwear", "Bottomwear", "Footwear", "Bags", "Accessories"])
     target_groups = [g for g in target_groups if g != user_group]
-    outfit_buckets = {group: None for group in target_groups}
+    outfit_buckets = {group: [] for group in target_groups}
     
     blacklist = ["Briefs", "Bra", "Innerwear", "Socks", "Vests", "Nightdress", "Nightwear", "Boxers"]
+    
+    # 4. Search with Strict Category Gating
     _, all_indices = knn.kneighbors(query_vector, n_neighbors=len(image_files))
 
     for i in all_indices[0]:
         cand_id = image_files[i]
         info = final_data.get(cand_id, {})
         
-        cand_gender = str(info.get("gender", "")).strip().capitalize()
-        cand_type = str(info.get("articleType", "")).strip()
-        cand_usage = str(info.get("usage", "")).strip()
+        c_gen = str(info.get("gender", "")).strip().capitalize()
+        c_type = str(info.get("articleType", "")).strip()
+        c_usage = str(info.get("usage", "")).strip()
 
-        if user_gender == "Men" and cand_gender == "Women":
+        # --- THE "MEN-ONLY" STRICTURE ---
+        if user_gender == "Men" and c_gen == "Women":
             continue
-        if user_gender == "Women" and cand_gender == "Men":
-            continue
-        
-        if cand_type in blacklist or cand_type == user_type:
+            
+        # --- THE "NO T-SHIRT REPEAT" FIX ---
+        if c_type == user_type or c_type in blacklist:
             continue
 
-        clean_cand_type = cand_type.lower().replace(" ", "").replace("-", "")
-        cand_group = None
+        # --- THE "DOUBLE-GATE" CATEGORY CHECK ---
+        # 1. Get the actual group of this candidate
+        clean_c_type = c_type.lower().replace(" ", "").replace("-", "")
+        c_grp = None
         for g, types in category_map.items():
-            if clean_cand_type in [t.lower().replace(" ", "").replace("-", "") for t in types]:
-                cand_group = g
+            if clean_c_type in [t.lower().replace(" ", "").replace("-", "") for t in types]:
+                c_grp = g
                 break
 
-        if cand_group in outfit_buckets and outfit_buckets[cand_group] is None:
-            if cand_usage == user_usage:
-                outfit_buckets[cand_group] = cand_id
+        # 2. ONLY add if the candidate's group matches the bucket we are filling
+        # This prevents a 'Jacket' (Topwear) from entering the 'Footwear' bucket
+        if c_grp in outfit_buckets:
+            if len(outfit_buckets[c_grp]) < items_per_category:
+                # Optional: Match usage (Casual vs Formal)
+                if c_usage == user_usage:
+                    outfit_buckets[c_grp].append(cand_id)
 
-        if all(v is not None for v in outfit_buckets.values()):
+        # Stop once all buckets have 3 items
+        if all(len(v) >= items_per_category for v in outfit_buckets.values()):
             break
 
-    for group in outfit_buckets:
-        if outfit_buckets[group] is None:
-            for i in all_indices[0]:
-                cand_id = image_files[i]
-                info = final_data.get(cand_id, {})
-                c_gen = str(info.get("gender", "")).strip().capitalize()
-                c_type = str(info.get("articleType", "")).strip()
-                c_usage = str(info.get("usage", "")).strip()
-                
-                if user_gender == "Men" and c_gen == "Women": continue
-                if user_gender == "Women" and c_gen == "Men": continue
-                
-                clean_c_type = c_type.lower().replace(" ", "").replace("-", "")
-                c_grp = None
-                for g, types in category_map.items():
-                    if clean_c_type in [t.lower().replace(" ", "").replace("-", "") for t in types]:
-                        c_grp = g
-                        break
-
-                if c_grp == group and c_usage == user_usage and c_type not in blacklist:
-                    outfit_buckets[group] = cand_id
-                    break
-
-    return [img for img in outfit_buckets.values() if img is not None]
+    return outfit_buckets
 
 def handle_user_request(image_path):
     UPLOAD_BASE = "temp/user_uploads"

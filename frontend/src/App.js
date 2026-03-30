@@ -14,7 +14,7 @@ function App() {
       const selectedFile = e.target.files[0];
       setFile(selectedFile);
       setPreview(URL.createObjectURL(selectedFile));
-      setResults(null); // Reset results when new file is chosen
+      setResults(null); // Reset results when a new file is chosen
     }
   };
 
@@ -62,7 +62,7 @@ function App() {
         <input
           type="file"
           onChange={handleFileChange}
-          style={{ marginBottom: "10px" }}
+          style={{ marginBottom: "10px", color: "white" }}
         />
         <button
           onClick={uploadImage}
@@ -76,6 +76,7 @@ function App() {
             borderRadius: "8px",
             fontWeight: "bold",
             transition: "0.3s",
+            opacity: loading ? 0.7 : 1,
           }}
         >
           {loading ? "AI is Styling..." : "Complete My Outfit"}
@@ -117,64 +118,92 @@ function App() {
           </div>
         )}
 
-        {/* RIGHT: AI RECOMMENDATIONS */}
-        {results && (
-          <div style={{ flex: "1", maxWidth: "800px" }}>
-            <h3 style={{ color: "#15b2be", textAlign: "left" }}>
-              AI Styled Results
-            </h3>
-            <div
+        {/* RIGHT: AI RECOMMENDATIONS (Category-Based) */}
+        {results && results.recommendations && (
+          <div style={{ flex: "1", maxWidth: "900px" }}>
+            <h3
               style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
-                gap: "20px",
+                color: "#15b2be",
+                textAlign: "left",
+                marginBottom: "25px",
               }}
             >
-              {results.recommendations.map((imgName, index) => (
-                <div
-                  key={index}
+              AI Styled Results
+            </h3>
+
+            {Object.keys(results.recommendations).map((category) => (
+              <div
+                key={category}
+                style={{ marginBottom: "40px", textAlign: "left" }}
+              >
+                <h4
                   style={{
-                    background: "#0e0101",
-                    padding: "15px",
-                    borderRadius: "12px",
-                    boxShadow: "0 4px 10px rgba(0,0,0,0.05)",
-                    border: "4px solid #eee",
+                    color: "#e5e9ec",
+                    borderBottom: "1px solid #333",
+                    paddingBottom: "8px",
+                    textTransform: "uppercase",
+                    letterSpacing: "1px",
+                    fontSize: "14px",
                   }}
                 >
-                  <div
-                    style={{
-                      backgroundColor: "#e9d7d7",
-                      borderRadius: "8px",
-                      overflow: "hidden",
-                    }}
-                  >
-                    <img
-                      src={`${API_BASE}/images/${imgName}`}
-                      alt="Match"
+                  {category} Suggestions
+                </h4>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns:
+                      "repeat(auto-fill, minmax(180px, 1fr))",
+                    gap: "20px",
+                    marginTop: "15px",
+                  }}
+                >
+                  {results.recommendations[category].map((imgName, index) => (
+                    <div
+                      key={`${category}-${index}`}
                       style={{
-                        width: "100%",
-                        height: "200px",
-                        objectFit: "contain", // FIX: Prevents stretching/blur
-                        display: "block",
+                        background: "#0e0101",
+                        padding: "15px",
+                        borderRadius: "12px",
+                        boxShadow: "0 4px 10px rgba(0,0,0,0.05)",
+                        border: "2px solid #222",
                       }}
-                    />
-                  </div>
-                  <p
-                    style={{
-                      fontSize: "12px",
-                      color: "#95a5a6",
-                      marginTop: "10px",
-                      fontWeight: "600",
-                    }}
-                  >
-                    MATCHED ITEM
-                  </p>
-                  <p style={{ fontSize: "11px", color: "#bdc3c7" }}>
-                    ID: {imgName}
-                  </p>
+                    >
+                      <div
+                        style={{
+                          backgroundColor: "#e9d7d7",
+                          borderRadius: "8px",
+                          overflow: "hidden",
+                        }}
+                      >
+                        <img
+                          src={`${API_BASE}/images/${imgName}`}
+                          alt="Match"
+                          style={{
+                            width: "100%",
+                            height: "200px",
+                            objectFit: "contain",
+                            display: "block",
+                          }}
+                        />
+                      </div>
+                      <p
+                        style={{
+                          fontSize: "12px",
+                          color: "#308aa9",
+                          marginTop: "10px",
+                          fontWeight: "600",
+                        }}
+                      >
+                        {category.toUpperCase()} MATCH
+                      </p>
+                      <p style={{ fontSize: "11px", color: "#bdc3c7" }}>
+                        ID: {imgName}
+                      </p>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
