@@ -12,7 +12,7 @@ Simply upload an image, and the assistant identifies the closest visual matches 
 ## 🛠️ Tech Stack
 * **Frontend:** React.js, Tailwind CSS
 * **Backend:**  (Python) & Fastapi
-* **ML/AI:** Scikit-learn  TensorFlow/Keras 
+* **ML/AI:** Scikit-learn  TensorFlow/Keras , torchvision
 * **Data:** Pandas, NumPy, CSV Metadata
 
 ⚙️ Local Setup
